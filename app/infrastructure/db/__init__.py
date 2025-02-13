@@ -1,1 +1,1 @@
-# Импорты для работы с БД
+from .user_model import UserModel

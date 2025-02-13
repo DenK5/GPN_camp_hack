@@ -1,1 +1,1 @@
-# Импортирт всеx сервисов
+from .user_service import UserService
