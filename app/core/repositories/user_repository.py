@@ -23,10 +23,10 @@ class UserRepository:
         return user
 
     def update_preferences(self, telegram_id: str, preferences_by_type: str, preferences_by_food: str):
-        """ Обновляет предпочтения пользователя по типу кухни и конкретной еде. """
+        """ Обновляет предпочтения пользователя по кухне (свободный ввод) и еде. """
         user = self.get_user(telegram_id)
         if user:
-            user.preferences_by_type = preferences_by_type
+            user.preferences_by_type = preferences_by_type 
             user.preferences_by_food = preferences_by_food
             self.db.commit()
         return user
