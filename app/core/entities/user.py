@@ -3,12 +3,12 @@ from dataclasses import dataclass
 
 @dataclass
 class User:
-    telegram_id: str 
+    telegram_id: int
     chat_id: str
+    base_position: Optional[str] = None # Адрес пользователя по умолчанию
     avg_receipt: Optional[float]  = None # Желаемый средний чек
     preferences_by_type: Optional[str] = None  # Предпочтения по типу кухни
     preferences_by_food: Optional[str] = None # Конкретные предпочтения в еде (любимая еда, аллергии, нелюбимая еда)
-    base_position: str # Адрес пользователя по умолчанию
 
     def set_avg_receipt(self, avg_receipt: float):
         """ Устанавливает средний чек пользователя. """
@@ -33,4 +33,3 @@ class User:
     def get_preferences_by_food(self) -> Optional[str]:
         """ Возвращает предпочтения в еде пользователя. """
         return self.preferences_by_food
-    
