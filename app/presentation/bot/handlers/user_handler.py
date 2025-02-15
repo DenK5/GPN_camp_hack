@@ -6,7 +6,7 @@ from app.core.services.user_service import UserService
 from app.presentation.ui.messages import (
     WELCOME_MESSAGE, ASK_CUISINE, ASK_AVG_RECEIPT, ASK_FOOD, ASK_OFFICE_LOCATION
 )
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -44,58 +44,34 @@ async def set_avg_receipt(message: types.Message, state: FSMContext):
 
 
 async def set_food_preferences(message: types.Message, state: FSMContext):
-    """Устанавливаем предпочтения в еде (любимые, нелюбимые продукты, аллергии)"""
+    """Сохранение предпочтений в еде"""
     await state.update_data(food_preferences=message.text)
     
-    data = await state.get_data()
-    user_service = UserService()
-    
-    if not data.get("base_position"):
-        await message.answer("Пожалуйста, укажи местоположение своего офиса на карте.")
-        await message.answer(ASK_OFFICE_LOCATION)
+    web_app_url = "https://mycustomname.loca.lt"
 
-        location_button = KeyboardButton(text="Отправить местоположение", request_location=True)
+    web_app = WebAppInfo(url=web_app_url)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📍 Ввести адрес", web_app=web_app)]
+    ])
+
+    
+    await message.answer("Теперь укажи адрес офиса, где ты работаешь:", reply_markup=keyboard)
+    await state.set_state(UserSurvey.office_location)
+
+async def set_office_location(callback_query: types.CallbackQuery, state: FSMContext):
+    """Обрабатываем адрес с web-app"""
+    try:
+        address = callback_query.web_app_data.data  # Получаем адрес из web-app
+        data = await state.get_data()
+        user_service = UserService()
         
-        markup = ReplyKeyboardMarkup(keyboard=[[location_button]], resize_keyboard=True)
-        # await message.answer("Пожалуйста, отправь местоположение своего офиса.", reply_markup=markup)
-
-        await state.set_state(UserSurvey.office_location)
-        return  
-
-    try:
-        await user_service.update_preferences(
-            telegram_id=message.from_user.id,
-            cuisine=data["cuisine"],
-            avg_receipt=data["avg_receipt"],
-            food_preferences=data["food_preferences"]
-        )
-        await message.answer("Спасибо! Теперь я знаю твои предпочтения и смогу подобрать лучшие места для обеда 🍽️")
+        await user_service.set_base_position(callback_query.from_user.id, address)
+        
+        await callback_query.message.answer(f"Ваш офис успешно сохранен: {address}")
+        await callback_query.answer()
     except Exception as e:
-        logger.error(f"Ошибка при обновлении предпочтений: {e}")
-        await message.answer("Произошла ошибка при сохранении данных. Попробуйте позже.")
-    
-    await state.clear()
-
-
-async def set_office_location(message: types.Message, state: FSMContext):
-    """Сохраняем местоположение офиса"""
-    try:
-        if message.location:
-            latitude = message.location.latitude
-            longitude = message.location.longitude
-
-            data = await state.get_data()
-            user_service = UserService()
-            base_position = f"Latitude: {latitude}, Longitude: {longitude}"
-
-            await user_service.set_base_position(message.from_user.id, base_position)
-
-            await message.answer(f"Ваш офис успешно сохранен: {base_position}")
-        else:
-            await message.answer("Пожалуйста, отправьте ваше местоположение.")
-    except Exception as e:
-        logger.error(f"Ошибка при сохранении местоположения: {e}")
-        await message.answer("Произошла ошибка при получении местоположения. Попробуйте снова.")
+        logger.error(f"Ошибка при сохранении адреса: {e}")
+        await callback_query.message.answer("Произошла ошибка, попробуйте снова.")
     
     await state.clear()
 
@@ -105,4 +81,5 @@ def register_user_handlers(dp: Dispatcher):
     dp.message.register(set_cuisine, UserSurvey.cuisine)
     dp.message.register(set_avg_receipt, UserSurvey.avg_receipt)
     dp.message.register(set_food_preferences, UserSurvey.food_preferences)
-    dp.message.register(set_office_location, UserSurvey.office_location)
+    dp.callback_query.register(set_office_location)
+
