@@ -1,6 +1,6 @@
 import logging
 from aiogram import Bot, Dispatcher
-from app.presentation.bot.handlers import user_handler
+from app.presentation.bot.handlers import user_handler, lunch_handler
 
 class TelegramBot:
     def __init__(self, token: str):
@@ -23,6 +23,7 @@ class TelegramBot:
 
     async def register_handlers(self):
         user_handler.register_user_handlers(self.dp)
+        lunch_handler.register_lunch_handlers(self.dp)
 
     async def setup(self):
         await self.dp.start_polling(self.bot)

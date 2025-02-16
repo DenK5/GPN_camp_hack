@@ -92,18 +92,9 @@ async def webapp_data_handler(message: types.Message, state: FSMContext):
 
     await state.clear()
 
-async def catch_all_messages(message: types.Message):
-    """Логируем все входящие сообщения"""
-    logging.info(f"📩 Пришло сообщение: {message.text}")
-    if message.web_app_data:
-        logging.info(f"📩 Данные WebApp: {message.web_app_data.data}")
-    else:
-        logging.info("❌ WebApp-данные отсутствуют в сообщении!")
-
 def register_user_handlers(dp: Dispatcher):
     dp.message.register(start_command, Command("start"))
     dp.message.register(set_cuisine, UserSurvey.cuisine)
     dp.message.register(set_avg_receipt, UserSurvey.avg_receipt)
     dp.message.register(set_food_preferences, UserSurvey.food_preferences)
     dp.message.register(webapp_data_handler, lambda msg: msg.content_type == ContentType.WEB_APP_DATA)
-    dp.message.register(catch_all_messages)
