@@ -13,6 +13,12 @@ class UserService:
         self.db_session = db_session or AsyncSessionLocal()
         self.user_repo = UserRepository(self.db_session)
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.db_session.close()
+
     async def set_avg_receipt(self, telegram_id: int, avg_receipt: float):
         """
         Устанавливает средний чек пользователя.
@@ -45,9 +51,65 @@ class UserService:
         return None
 
     async def update_preferences(self, telegram_id: int, cuisine: str, avg_receipt: float, food_preferences: str):
+        user = await self.user_repo.get_user(telegram_id)
+
+        if not user:
+            user = User(
+                telegram_id=telegram_id, 
+                chat_id=str(telegram_id), 
+                base_position_lat=None,
+                base_position_lng=None,
+                avg_receipt=avg_receipt,
+                preferences_by_type=cuisine,
+                preferences_by_food=food_preferences
+            )
+            await self.user_repo.save_user(user)
+        else:
+            user.avg_receipt = avg_receipt
+            user.preferences_by_type = cuisine
+            user.preferences_by_food = food_preferences
+            await self.user_repo.save_user(user)
+
+        await self.db_session.commit()
+        return user
+
+    async def set_base_position(self, telegram_id: int, latitude: float, longitude: float):
+        user = await self.user_repo.get_user(telegram_id)
+
+        if not user:
+            user = User(
+                telegram_id=telegram_id, 
+                chat_id=str(telegram_id),
+                avg_receipt=None,
+                preferences_by_type=None,
+                preferences_by_food=None,
+                base_position_lat=latitude,
+                base_position_lng=longitude 
+            )
+            await self.user_repo.save_user(user)  
+        else:
+            user.base_position_lat = float(latitude)
+            user.base_position_lng = float(longitude)
+            await self.user_repo.save_user(user)  
+
+        await self.db_session.commit()
+        return True
+
+    async def get_base_position(self, telegram_id: int):
         """
-        Обновляет предпочтения пользователя (кухня, средний чек, предпочтения по еде).
-        Если пользователя нет в БД, создаем нового и сохраняем.
+        Получает базовые координаты (широту и долготу) пользователя.
+        """
+        user = await self.user_repo.get_user(telegram_id)
+        if user:
+            return {
+                "latitude": user.base_position_lat,
+                "longitude": user.base_position_lng
+            }
+        return None
+
+    async def save_user_data(self, telegram_id: int, cuisine: str, avg_receipt: float, food_preferences: str, latitude: float, longitude: float):
+        """
+        Сохраняет все данные пользователя, включая предпочтения, средний чек и координаты.
         """
         user = await self.user_repo.get_user(telegram_id)
 
@@ -55,36 +117,23 @@ class UserService:
             user = User(
                 telegram_id=telegram_id, 
                 chat_id=str(telegram_id), 
-                base_position=None
+                avg_receipt=avg_receipt,
+                preferences_by_type=cuisine,
+                preferences_by_food=food_preferences,
+                base_position_lat=latitude,
+                base_position_lng=longitude
             )
             await self.user_repo.save_user(user)
-
-        user.set_preferences_by_type(cuisine)
-        user.set_avg_receipt(avg_receipt)
-        user.set_preferences_by_food(food_preferences)
-
-        await self.user_repo.save_user(user)
-
-        return user
-
-
-    async def set_base_position(self, telegram_id: int, base_position: str):
-        """
-        Устанавливает базовый адрес пользователя и сохраняет его в базе данных.
-        """
-        user = await self.user_repo.get_user(telegram_id)
-        if user:
-            user.base_position = base_position
+        else:
+            user.avg_receipt = avg_receipt
+            user.preferences_by_type = cuisine
+            user.preferences_by_food = food_preferences
+            user.base_position_lat = latitude
+            user.base_position_lng = longitude
             await self.user_repo.save_user(user)
-            return True
-        return False
 
-    async def get_base_position(self, telegram_id: int):
-        """
-        Получает базовый адрес пользователя.
-        """
-        user = await self.user_repo.get_user(telegram_id)
-        return user.base_position if user else None
+        await self.db_session.commit()
+        return user
 
     async def close(self):
         """Закрываем сессию при уничтожении объекта сервиса."""

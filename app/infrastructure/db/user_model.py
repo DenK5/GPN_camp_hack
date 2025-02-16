@@ -9,4 +9,5 @@ class UserModel(Base):
     avg_receipt = Column(Float, nullable=True)
     preferences_by_type = Column(String, nullable=True)
     preferences_by_food = Column(String, nullable=True)
-    base_position = Column(String, nullable=True)
+    base_position_lat = Column(Float, nullable=True)
+    base_position_lng = Column(Float, nullable=True)

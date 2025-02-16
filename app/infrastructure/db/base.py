@@ -27,7 +27,6 @@ async def init_db():
     except Exception as e:
         print(f"Error initializing database: {e}")
 
-
 async def main():
     await init_db()
 

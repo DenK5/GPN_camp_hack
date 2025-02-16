@@ -1,26 +1,48 @@
-let map, marker, address = "", lat = 0, lng = 0;
+let map, marker;
+const defaultLat = 59.94028, defaultLng = 30.369012;  
 
 window.onload = () => {
     DG.then(() => {
-        map = DG.map('map', { center: [55.751244, 37.618423], zoom: 13 });
-        marker = DG.marker([55.751244, 37.618423], { draggable: true }).addTo(map);
+        let storedLat = localStorage.getItem("latitude");
+        let storedLng = localStorage.getItem("longitude");
 
-        marker.on('dragend', async function (e) {
-            ({ lat, lng } = e.target.getLatLng());
-            try {
-                const response = await fetch(`https://catalog.api.2gis.com/3.0/items/geocode?q=${lat},${lng}&key=8e1a3eae-b95b-416a-8f0e-5b69cbcdc23c`);
-                const data = await response.json();
-                address = data.result?.items[0]?.full_name || "Адрес не найден";
-            } catch (error) {
-                console.error("Ошибка получения адреса:", error);
-                address = "Ошибка определения адреса";
-            }
+        let lat = defaultLat;
+        let lng = defaultLng;
+
+        map = DG.map("map", { center: [lat, lng], zoom: 13 });
+
+        marker = DG.marker([lat, lng]).addTo(map);
+
+        map.on('click', (e) => {
+            let { lat, lng } = e.latlng;
+            marker.setLatLng([lat, lng]);
+            localStorage.setItem("latitude", lat);
+            localStorage.setItem("longitude", lng);
+            console.log("Выбранные координаты:", lat, lng);
         });
     });
-
-    document.getElementById("confirm").onclick = () => {
-        const locationData = { base_position: { address, latitude: lat, longitude: lng } };
-        window.Telegram.WebApp.sendData(JSON.stringify(locationData));
-        window.Telegram.WebApp.close();
-    };
 };
+
+document.getElementById("confirm").onclick = () => {
+    let lat = localStorage.getItem("latitude");
+    let lng = localStorage.getItem("longitude");
+
+    if (!lat || !lng) {
+        window.Telegram.WebApp.showAlert("❌ Ошибка: выберите точку на карте!");
+        return;
+    }
+
+    sendLocationData(lat, lng, true);
+};
+
+function sendLocationData(lat, lng, closeWebApp = false) {
+    const locationData = JSON.stringify({ latitude: lat, longitude: lng });
+
+    window.Telegram.WebApp.sendData(locationData);
+
+    if (closeWebApp) {
+        window.Telegram.WebApp.showAlert(locationData, () => {
+            setTimeout(() => window.Telegram.WebApp.close(), 100);
+        });
+    }
+}
