@@ -130,7 +130,7 @@ class Map2GisAPI:
             PlaceInfo | None: Информация о заведении
 
         Examples:
-            >>> Map2GisAPI.get_place_info(address='Омск, проспект Мира 9', place_name='Ланч-Тайм')
+            >>> Map2GisAPI.get_place_info(city='Омск', place_address='Ланч-Тайм, проспект Мира 9')
             PlaceInfo(...)
         """
         url = 'https://catalog.api.2gis.com/3.0/items'
