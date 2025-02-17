@@ -34,17 +34,46 @@ class Map2GisAPI:
             return None
 
     @staticmethod
+    def get_city_by_point(point: Point) -> str:
+        """Метод для получения города по координатам
+
+        Args:
+            point (Point): Долгота и широта объекта (координата)
+
+        Returns:
+            str | None: Значение города
+
+        Examples:
+            >>> Map2GisAPI.get_city_by_point(Point(lat=59.931345, lon=30.366953))
+            Санкт-Петербург
+        """
+        url = 'https://catalog.api.2gis.com/3.0/items/geocode'
+        params = {
+            'lat': point.lat,
+            'lon': point.lon,
+            'fields': 'items.full_address_name',
+            'key': ...
+        }
+        try:
+            items = requests.get(url, params=params).json()['result']['items']
+            for item in items:
+                if item.get('subtype') == 'city':
+                    return item.get('name')
+        except:
+            return None
+
+    @staticmethod
     def get_places_info(lat: float, lon: float, query: str = 'обед с бизнес-ланчем', radius: int = 1000) -> list[PlaceInfo]:
         """Метод для получения информации об объектах в радиусе по данной широте и долготе
 
         Args:
             lat (float): Широта точки
             lon (float): Долгота точки
-            querry (float): Запрос, по которому осуществляется поиск
+            query (float): Запрос, по которому осуществляется поиск
             radius (float): Радиус (в метрах), по которому осуществляется поиск
 
         Returns:
-            list[PlaceInfo]: Список информации о местах общественого питания, найденный в данном радиусе относительно точки
+            list[PlaceInfo]: Список информации о местах общественного питания, найденный в данном радиусе относительно точки
 
         Examples:
             >>> Map2GisAPI.get_places_info(lat=59.94028, lon=30.369012)
@@ -90,12 +119,12 @@ class Map2GisAPI:
 
 
     @staticmethod
-    def get_place_info(address: str, place_name: str) -> PlaceInfo | None:
+    def get_place_info(city: str, place_address: str) -> PlaceInfo | None:
         """Метод для получения информации об объекте по его адресу и названию
 
         Args:
-            address (str): Текстовое значение адреса, состоящего из города, улицы и номера дома
-            place_name (str): Название заведения
+            city (str): Город
+            place_address (str): Текстовое значение адреса, состоящего из города, улицы и номера дома вместе с названием заведения
 
         Returns:
             PlaceInfo | None: Информация о заведении
@@ -107,7 +136,7 @@ class Map2GisAPI:
         url = 'https://catalog.api.2gis.com/3.0/items'
 
         params = {
-            'q': f'{address}, {place_name}',
+            'q': f'{city}, {place_address}',
             'type': 'branch',
             'fields': 'items.point,items.rubrics,items.description,items.reviews,items.statistics,items.context',
             'key': ...
