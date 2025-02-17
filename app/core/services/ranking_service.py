@@ -23,10 +23,10 @@ class RankingService:
             price_score = wanted_price - price * coef_price
         return (wanted_price - price) * coef_price + place_rating * coef_rating
     
-    def get_places_score(self, office_point: Point, group_needs: list[User], places: list[PlaceInfo], k: int = 10, coef_time: int = 1) -> list[float]:
+    async def get_places_score(self, office_point: Point, group_needs: list[User], places: list[PlaceInfo], k: int = 10, coef_time: int = 1) -> list[float]:
         place_scores = {place.place_id: 0 for place in places}
         for place in places:
-            place_scores[place.place_id] -= Map2GisAPI(self.api_key).get_route(office_point, place.point).duration * 2 * coef_time
+            place_scores[place.place_id] -= await Map2GisAPI(self.api_key).get_route(office_point, place.point).duration * 2 * coef_time
             for user in group_needs:
                 place_scores[place.place_id] += RankingService.get_score(user.avg_receipt, place.avg_lunch_cost,
                                             place.avg_buisness_lunch_cost, place.general_rating)
