@@ -1,14 +1,17 @@
-import requests
-import json
 import traceback
+
+import aiohttp
+
 from api.models.PlaceInfo import PlaceInfo
 from api.models.Route import Route
 from api.models.Point import Point
 
 
 class Map2GisAPI:
-    @staticmethod
-    def get_coords_by_address(address: str) -> Point | None:
+    def __init__(self, api_key: str) -> None:
+        self._api_key = api_key
+
+    async def get_coords_by_address(self, address: str) -> Point | None:
         """Метод для получения долготы и широты объекта по его физическому адресу
 
         Args:
@@ -25,16 +28,20 @@ class Map2GisAPI:
         params = {
             'q': address,
             'fields': 'items.point',
-            'key': ...
+            'key': self._api_key
         }
         try:
-            response = requests.get(url, params=params)
-            return Point(**response.json()['result']['items'][0]['point'])
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    url=url,
+                    params=params,
+                ) as response:
+                    response_data = await response.json()
+            return Point(**response_data['result']['items'][0]['point'])
         except:
             return None
 
-    @staticmethod
-    def get_city_by_point(point: Point) -> str:
+    async def get_city_by_point(self, point: Point) -> str:
         """Метод для получения города по координатам
 
         Args:
@@ -52,18 +59,23 @@ class Map2GisAPI:
             'lat': point.lat,
             'lon': point.lon,
             'fields': 'items.full_address_name',
-            'key': ...
+            'key': self._api_key
         }
         try:
-            items = requests.get(url, params=params).json()['result']['items']
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    url=url,
+                    params=params,
+                ) as response:
+                    response_data = await response.json()
+            items = response_data['result']['items']
             for item in items:
                 if item.get('subtype') == 'city':
                     return item.get('name')
         except:
             return None
 
-    @staticmethod
-    def get_places_info(lat: float, lon: float, query: str = 'обед с бизнес-ланчем', radius: int = 1000) -> list[PlaceInfo]:
+    async def get_places_info(self, lat: float, lon: float, query: str = 'обед с бизнес-ланчем', radius: int = 1000) -> list[PlaceInfo]:
         """Метод для получения информации об объектах в радиусе по данной широте и долготе
 
         Args:
@@ -91,14 +103,20 @@ class Map2GisAPI:
             'fields': 'items.point,items.rubrics,items.description,items.reviews,items.statistics,items.context',
             'page': 1,
             'page_size': page_size,
-            'key': ...
+            'key': self._api_key
         }
 
         try:
             while True:
-                response = requests.get(url, params=params)
-                response.raise_for_status()
-                data = response.json().get('result', {})
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        url=url,
+                        params=params,
+                    ) as response:
+                        response.raise_for_status()
+                        response_data = await response.json()
+
+                data = response_data.get('result', {})
 
                 if not data:
                     break
@@ -117,9 +135,7 @@ class Map2GisAPI:
 
         return [PlaceInfo(**place) for place in places]
 
-
-    @staticmethod
-    def get_place_info(city: str, place_address: str) -> PlaceInfo | None:
+    async def get_place_info(self, city: str, place_address: str) -> PlaceInfo | None:
         """Метод для получения информации об объекте по его адресу и названию
 
         Args:
@@ -130,7 +146,7 @@ class Map2GisAPI:
             PlaceInfo | None: Информация о заведении
 
         Examples:
-            >>> Map2GisAPI.get_place_info(city='Омск', place_address='Ланч-Тайм, проспект Мира 9')
+            >>> Map2GisAPI.get_place_info(address='Омск, проспект Мира 9', place_name='Ланч-Тайм')
             PlaceInfo(...)
         """
         url = 'https://catalog.api.2gis.com/3.0/items'
@@ -139,17 +155,21 @@ class Map2GisAPI:
             'q': f'{city}, {place_address}',
             'type': 'branch',
             'fields': 'items.point,items.rubrics,items.description,items.reviews,items.statistics,items.context',
-            'key': ...
+            'key': self._api_key
         }
 
         try:
-            response = requests.get(url, params=params)
-            return PlaceInfo(**response.json()['result']['items'][0])
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    url=url,
+                    params=params,
+                ) as response:
+                    response_data = await response.json()
+            return PlaceInfo(**response_data['result']['items'][0])
         except:
             return None
 
-    @staticmethod
-    def get_route(from_point: Point, to_point: Point) -> Route | None:
+    async def get_route(self, from_point: Point, to_point: Point) -> Route | None:
         """Метод для получения расстояния от точки до точки и времени пути
 
         Args:
@@ -181,11 +201,18 @@ class Map2GisAPI:
         }
 
         params = {
-            'key': ...
+            'key': self._api_key
         }
 
         try:
-            response = requests.post(url, data=json.dumps(data), headers=headers, params=params)
-            return Route(**response.json()['routes'][0])
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url=url,
+                    headers=headers,
+                    params=params,
+                    json=data,
+                ) as response:
+                    response_data = await response.json()
+            return Route(**response_data['routes'][0])
         except:
             return None
