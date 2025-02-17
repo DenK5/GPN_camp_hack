@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, AliasPath, BeforeValidator
 import re
 import typing as t
-from api.models.Point import Point
+from app.infrastructure.external.map_api.models.Point import Point
 
 
 def collect_rubrics(rubrics: dict[str, t.Any]) -> list[str]:
@@ -15,7 +15,7 @@ def get_avg_lunch_cost(stop_factors: list[dict[str, str]]) -> int:
     return -1
 
 
-def get_avg_buisness_lunch_cost(stop_factors: list[dict[str, str]]) -> int:
+def get_avg_business_lunch_cost(stop_factors: list[dict[str, str]]) -> int:
     for stop_factor in stop_factors:
         if stop_factor.get('tag') == 'food_service_lunch_cost':
             return int(re.search('\d+', stop_factor.get('name')).group(0))
@@ -38,5 +38,5 @@ class PlaceInfo(BaseModel):
     general_rating: float = Field(validation_alias=AliasPath('reviews', 'general_rating'))
     rubrics: t.Annotated[list[str], BeforeValidator(collect_rubrics)]
     avg_lunch_cost: t.Annotated[int, BeforeValidator(get_avg_lunch_cost)] = Field(-1, validation_alias=AliasPath('context', 'stop_factors'))
-    avg_buisness_lunch_cost: t.Annotated[int, BeforeValidator(get_avg_buisness_lunch_cost)] = Field(-1, validation_alias=AliasPath('context', 'stop_factors'))
+    avg_business_lunch_cost: t.Annotated[int, BeforeValidator(get_avg_business_lunch_cost)] = Field(-1, validation_alias=AliasPath('context', 'stop_factors'))
     cuisines: t.Annotated[list[str], BeforeValidator(get_cuisines)] = Field(-1, validation_alias=AliasPath('context', 'stop_factors'))

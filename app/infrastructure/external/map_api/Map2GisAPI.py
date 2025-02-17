@@ -2,9 +2,9 @@ import traceback
 
 import aiohttp
 
-from api.models.PlaceInfo import PlaceInfo
-from api.models.Route import Route
-from api.models.Point import Point
+from app.infrastructure.external.map_api.models.PlaceInfo import PlaceInfo
+from app.infrastructure.external.map_api.models.Route import Route
+from app.infrastructure.external.map_api.models.Point import Point
 
 
 class Map2GisAPI:
