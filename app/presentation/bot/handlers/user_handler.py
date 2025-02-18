@@ -24,13 +24,17 @@ class UserSurvey(StatesGroup):
 
 async def start_command(message: types.Message, state: FSMContext, command: CommandObject):
     """Обрабатывает команду /start, проверяя параметры deep linking."""
-    if command.args == "lunch":
+    if command.args and command.args.startswith("lunch_"):
+        chat_id = command.args.replace("lunch_", "")
+
+        await state.update_data(chat_id=chat_id)
+
         await start_lunch_private(message, state)
-        return
     else:
         await message.answer(WELCOME_MESSAGE)
         await message.answer(ASK_CUISINE)
         await state.set_state(UserSurvey.cuisine)
+
 
 async def set_cuisine(message: types.Message, state: FSMContext):
     """Устанавливаем предпочтения по кухне"""
@@ -51,7 +55,7 @@ async def set_food_preferences(message: types.Message, state: FSMContext):
     """Сохранение предпочтений в еде"""
     await state.update_data(food_preferences=message.text)
     
-    web_app_url = "https://mycustomname.loca.lt"
+    web_app_url = "https://b34cac08-647f-4fc5-b111-a7174ebcf812.tunnel4.com"
     web_app = WebAppInfo(url=web_app_url)
     keyboard = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="📍 Ввести адрес", web_app=web_app)]],

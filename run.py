@@ -6,7 +6,6 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from app.presentation.bot.handlers import user_handler, lunch_handler
 from app.core.services.poll_service import PollService
-from app.core.repositories.poll_repository import PollRepository
 from app.core.repositories.restaurant_repository import RestaurantRepository
 
 load_dotenv()
@@ -20,9 +19,9 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-poll_repository = PollRepository()
-restaurant_repository = RestaurantRepository()
-poll_service = PollService(poll_repository, restaurant_repository)
+# poll_repository = PollRepository()
+# restaurant_repository = RestaurantRepository()
+poll_service = PollService()
 
 def register_handlers():
     logging.info("🛠️ Регистрируем обработчики...")

@@ -6,8 +6,13 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
 from datetime import datetime, timezone, timedelta
-from aiogram.fsm.storage.memory import MemoryStorage
+from app.infrastructure.external.map_api.Map2GisAPI import Map2GisAPI
+from app.infrastructure.external.map_api.models.Point import Point
+from app.application.use_cases.create_poll_use_case import CreatePollUseCase
+from app.core.services.poll_service import PollService
+from aiogram.types import Message
 import json
+import asyncio
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,16 +22,19 @@ class LunchSurvey(StatesGroup):
     choose_end_time = State()
     choose_location = State()
     location_name = State()
+    chat_id = State()
+    members = State()
 
-async def start_lunch_command(message: types.Message, bot: Bot):
+async def start_lunch_command(message: types.Message, bot: Bot, state: FSMContext):
     """Обрабатывает команду /lunch в групповом чате, отправляя кнопку 'Пойдем на обед'."""
     if message.chat.type == "private":
-        await start_lunch_private(message)
+        await start_lunch_private(message, state)
         return
 
     chat_id = message.chat.id
     members = await bot.get_chat_administrators(chat_id)
     user_ids = [member.user.id for member in members if not member.user.is_bot]
+    
     logging.info(f"📋 id чата: {chat_id}")
     logging.info(f"📋 Собран список участников: {user_ids}")
 
@@ -35,16 +43,22 @@ async def start_lunch_command(message: types.Message, bot: Bot):
     inline_keyboard = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(
             text="Пойдем на обед",
-            url=f"https://t.me/{bot_info.username}?start=lunch"
+            url=f"https://t.me/{bot_info.username}?start=lunch_{chat_id}"
         )]]
     )
 
     await message.answer("🍽 Кто хочет пойти на обед? Жмите кнопку!", reply_markup=inline_keyboard)
 
+    await state.update_data(chat_id=chat_id, members=user_ids)
+
+
 
 async def start_lunch_private(message: types.Message, state: FSMContext):
-    """Обрабатывает команду /lunch в личных сообщениях."""
+    """Запускает процесс выбора обеда в ЛС."""
     logging.info(f"👤 Пользователь {message.from_user.id} перешел в ЛС")
+    
+    data = await state.get_data()
+    logging.info(f"✅ Данные в состоянии после сохранения chat_id: {data}")
 
     keyboard = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="✅ Да"), KeyboardButton(text="❌ Нет")]],
@@ -53,6 +67,7 @@ async def start_lunch_private(message: types.Message, state: FSMContext):
 
     await message.answer("Вы хотите выбрать место обеда самостоятельно?", reply_markup=keyboard)
     await state.set_state(LunchSurvey.choose_method)
+
 
 
 async def process_lunch_choice(message: types.Message, state: FSMContext):
@@ -66,7 +81,6 @@ async def process_lunch_choice(message: types.Message, state: FSMContext):
         await state.set_state(LunchSurvey.choose_date_and_time)
     elif choice == "❌ нет":
         await message.answer("Мы подберем вам лучшее место!", reply_markup=ReplyKeyboardRemove())
-        await state.clear()
     else:
         await message.answer("Выберите один из предложенных вариантов.")
 
@@ -83,6 +97,8 @@ async def process_calendar(callback_query: types.CallbackQuery, callback_data: d
             formatted_date = date.strftime("%d.%m.%Y")
             await state.update_data(lunch_date=formatted_date)
 
+            logging.info(f"📅 Дата обеда сохранена: {formatted_date}")
+
             keyboard = ReplyKeyboardMarkup(
                 keyboard=[[KeyboardButton(
                     text="Ввести время", 
@@ -95,9 +111,9 @@ async def process_calendar(callback_query: types.CallbackQuery, callback_data: d
                 reply_markup=keyboard
             )
             await state.set_state(LunchSurvey.choose_date_and_time)
-
         else:
             await callback_query.answer("Ошибка при выборе даты. Попробуйте снова.")
+
     except Exception as e:
         logging.error(f"Ошибка в обработке календаря: {e}")
         await callback_query.message.answer("Произошла ошибка при обработке календаря. Пожалуйста, попробуйте снова.")
@@ -109,14 +125,12 @@ async def process_web_app_time(message: types.Message, state: FSMContext):
         logging.info(f"Получено сообщение от пользователя {message.from_user.id}: {message.web_app_data}")
 
         if not message.web_app_data or not message.web_app_data.data:
-            logging.error("❌ Время не было передано. Пожалуйста, попробуйте снова.")
-            await message.answer("❌ Время не было передано. Пожалуйста, попробуйте снова.")
+            await message.answer("❌ Время не было передано. Попробуйте снова.")
             return
 
         data = message.web_app_data.data.split("_")
         if len(data) != 2:
-            logging.error("❌ Неверный формат данных. Пожалуйста, попробуйте снова.")
-            await message.answer("❌ Неверный формат данных. Пожалуйста, попробуйте снова.")
+            await message.answer("❌ Неверный формат данных. Попробуйте снова.")
             return
 
         timestamp = int(data[0])
@@ -124,11 +138,9 @@ async def process_web_app_time(message: types.Message, state: FSMContext):
 
         utc_time = datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc)
         local_time = utc_time + timedelta(minutes=timezone_offset)
-
-        adjusted_time = local_time - timedelta(hours=12)
-
-        formatted_time = adjusted_time.strftime("%H:%M")
-        logging.info(f"⏰ Время обеда (после корректировки): {formatted_time}")
+        djusted_time = local_time - timedelta(hours=12)
+        formatted_time = djusted_time.strftime("%H:%M")
+        logging.info(f"⏰ Время обеда сохранено: {formatted_time}")
 
         await state.update_data(lunch_time=formatted_time)
 
@@ -136,14 +148,16 @@ async def process_web_app_time(message: types.Message, state: FSMContext):
         lunch_date = user_data.get("lunch_date")
 
         if lunch_date:
-            await message.answer(f"Теперь введите время окончания опроса (ЧЧ:ММ, например 12:30):")
+            choose_date_and_time = f"{lunch_date} {formatted_time}"
+            await state.update_data(choose_date_and_time=choose_date_and_time)
+            await message.answer(f"📅 Вы выбрали обед: {choose_date_and_time}\n\nТеперь введите время окончания опроса (ЧЧ:ММ, например 12:30):")
             await state.set_state(LunchSurvey.choose_end_time)
-
         else:
-            await message.answer("Не удалось получить дату обеда. Попробуйте снова.")
+            await message.answer("❌ Ошибка: Не удалось получить дату обеда. Попробуйте снова.")
+
     except Exception as e:
         logging.error(f"Ошибка при обработке времени: {e}")
-        await message.answer("❌ Произошла ошибка при обработке времени. Пожалуйста, попробуйте снова.")
+        await message.answer("❌ Произошла ошибка при обработке времени. Попробуйте снова.")
 
 
 async def process_poll_end_time(message: types.Message, state: FSMContext):
@@ -178,9 +192,11 @@ async def process_poll_end_time(message: types.Message, state: FSMContext):
         await message.answer("Время окончания опроса должно быть раньше времени обеда! Попробуйте снова.")
         return
 
+    await state.update_data(choose_end_time=formatted_time)
+
     await message.answer(f"📅 Опрос завершится в {formatted_time}, обед в {lunch_time}.")
 
-    web_app_url = "https://mycustomname.loca.lt"
+    web_app_url = "https://b34cac08-647f-4fc5-b111-a7174ebcf812.tunnel4.com"
     web_app = types.WebAppInfo(url=web_app_url)
 
     keyboard = ReplyKeyboardMarkup(
@@ -225,39 +241,78 @@ async def process_web_app_location(message: types.Message, state: FSMContext):
             logging.error(f"❌ Общая ошибка при обработке координат: {e}")
             await message.answer("❌ Произошла ошибка при обработке координат. Попробуйте снова.")
 
-async def process_location_name(message: types.Message, state: FSMContext):
+async def track_poll_end_time(chat_id: int, poll_message_id: int, end_time: str, choose_date_and_time: str, bot: Bot):
+    """Фоновая задача для отслеживания времени окончания опроса."""
+    
+    if not choose_date_and_time:
+        logging.error("❌ Ошибка: choose_date_and_time отсутствует!")
+        return
+
+    try:
+        choose_dt = datetime.strptime(choose_date_and_time, "%d.%m.%Y %H:%M")
+        end_hours, end_minutes = map(int, end_time.split(":"))
+        end_dt = choose_dt.replace(hour=end_hours, minute=end_minutes)
+
+        now = datetime.now()
+        while now < end_dt:
+            await asyncio.sleep(30)
+            now = datetime.now()
+
+        poll_results = await bot.stop_poll(chat_id, poll_message_id)
+        results_message = "📊 *Результаты голосования:*\n"
+
+        for option in poll_results.options:
+            results_message += f"✅ {option.text}: {option.voter_count} голосов\n"
+
+
+        await bot.send_message(chat_id, results_message, parse_mode="Markdown")
+
+    except Exception as e:
+        logging.error(f"❌ Ошибка в track_poll_end_time: {e}")
+
+
+
+async def process_location_name(message: types.Message, state: FSMContext, bot: Bot):
     """Обрабатывает ввод названия заведения и завершает опрос."""
     location_name = message.text.strip()
-    logging.info(f"📍 Введено имя {location_name}")
+    logging.info(f"Введено имя {location_name}")
+    
     if not location_name:
         await message.answer("❌ Название не может быть пустым. Попробуйте еще раз.")
         return
 
     user_data = await state.get_data()
+    date_and_time = user_data.get("choose_date_and_time")
+    end_time = user_data.get("choose_end_time")
     location = user_data.get("choose_location")
+    chat_id = user_data.get("chat_id")
 
-    logging.info(f"Позиция {location}")
-    
-    if not location or not isinstance(location, dict):
-        logging.error("❌ Ошибка: координаты отсутствуют в state!")
-        await message.answer("❌ Ошибка! Координаты отсутствуют. Попробуйте заново выбрать место.")
+    if not chat_id:
+        logging.error("❌ Ошибка: chat_id отсутствует в состоянии!")
+        await message.answer("❌ Не удалось получить chat_id. Попробуйте снова.")
         return
 
-    latitude = location.get("latitude")
-    longitude = location.get("longitude")
+    if not location:
+        logging.error("❌ Ошибка: координаты отсутствуют в state!")
+        await message.answer("❌ Ошибка: координаты не выбраны. Пожалуйста, выберите место еще раз.")
+        return
 
     await state.update_data(location_name=location_name)
-    user_data = await state.get_data()
+    
+    poll_service = PollService()
+    create_poll_use_case = CreatePollUseCase(poll_service)
+    poll_message = await create_poll_use_case.execute(chat_id, location_name, end_time)
+    
+    logging.info(f"Тип poll_message: {type(poll_message)}, содержимое: {poll_message}")
+    
+    poll_message_id = poll_message.get("message_id")
+    if not poll_message_id:
+        logging.error("❌ Ошибка: 'message_id' отсутствует в poll_message!")
+        await message.answer("❌ Ошибка при создании опроса. Попробуйте снова.")
+        return
 
-    await message.answer(
-        f"✅ Вы выбрали место:\n"
-        f"📍 {user_data['location_name']}\n"
-        f"🌍 Широта: {latitude}\n"
-        f"🌏 Долгота: {longitude}\n"
-        f"🏠 Заведение: {location_name}\n\n"
-        f"Спасибо! Опрос завершен."
-    )
-
+    asyncio.create_task(track_poll_end_time(chat_id, poll_message_id, end_time, date_and_time, bot))
+    logging.info(f"✅ Опрос по {location_name} отправлен в групповой чат {chat_id}")
     await state.clear()
 
 

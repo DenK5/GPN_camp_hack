@@ -1,7 +1,5 @@
 import traceback
-
 import aiohttp
-
 from app.infrastructure.external.map_api.models.PlaceInfo import PlaceInfo
 from app.infrastructure.external.map_api.models.Route import Route
 from app.infrastructure.external.map_api.models.Point import Point
@@ -214,5 +212,32 @@ class Map2GisAPI:
                 ) as response:
                     response_data = await response.json()
             return Route(**response_data['routes'][0])
+        except:
+            return None
+
+    async def get_address_by_coords(self, latitude: float, longitude: float) -> str | None:
+        """Метод для получения адреса по координатам (широта и долгота).
+
+        Args:
+            latitude (float): Широта точки
+            longitude (float): Долгота точки
+
+        Returns:
+            str | None: Адрес объекта
+        """
+        url = 'https://catalog.api.2gis.com/3.0/items/geocode'
+        params = {
+            'lat': latitude,
+            'lon': longitude,
+            'fields': 'items.full_address_name',
+            'key': self._api_key
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url=url, params=params) as response:
+                    response_data = await response.json()
+            items = response_data['result']['items']
+            if items:
+                return items[0].get('full_address_name')
         except:
             return None

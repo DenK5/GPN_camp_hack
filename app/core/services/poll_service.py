@@ -1,31 +1,30 @@
-from app.core.entities.poll import Poll
-from typing import List, Optional
+from aiogram import Bot, types
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+import logging
 
 class PollService:
-    def __init__(self, poll_repository, restaurant_repository):
-        self.poll_repository = poll_repository
-        self.restaurant_repository = restaurant_repository
-    
-    def create_poll(self, group_id: int, filters: Optional[dict] = None) -> Optional[Poll]:
-        """
-        Формирует опрос с вариантами ресторанов.
+    async def send_poll(self, chat_id: int, place_name: str, end_time: str):
+        bot = Bot(token="7119550077:AAHpY8Evua6Bc0htFSZ50vU1uzautnZXLvA")
+        poll_question = f"Вы хотите пойти на обед в {place_name}? Опрос заканчивается в {end_time}."
+        
+        options = ["Пойду", "Не пойду"]
 
-        :param group_id: ID группового чата
-        :param filters: Фильтры для поиска ресторанов (по желанию)
-        :return: Созданный объект Poll или None, если рестораны не найдены
-        """
-        # Получаем список ресторанов с учетом фильтров
-        restaurants = self.restaurant_repository.get_restaurants(filters)
-        if not restaurants:
-            # Можно здесь также отправить сообщение пользователю, что рестораны не найдены
-            return None
-        
-        poll_options = [r.name for r in restaurants]
-        
-        # Создаем объект опроса
-        poll = Poll(group_id=group_id, options=poll_options)
-        
-        # Сохраняем опрос в репозитории
-        self.poll_repository.save(poll)
-        
-        return poll
+        try:
+            poll_message = await bot.send_poll(
+                chat_id=chat_id,
+                question=poll_question,
+                options=options,
+                is_anonymous=False,
+                type="regular",
+                allows_multiple_answers=False
+            )
+
+            if not poll_message or not poll_message.message_id:
+                raise ValueError("Опрос не был успешно создан: отсутствует message_id")
+
+            logging.info(f"Опрос для {place_name} отправлен в чат {chat_id}. message_id: {poll_message.message_id}")
+            return poll_message
+
+        except Exception as e:
+            logging.error(f"Ошибка при отправке опроса: {e}")
+            raise
