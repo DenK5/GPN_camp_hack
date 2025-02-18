@@ -49,14 +49,14 @@ class RankingService:
 
         return np.sum(matrix, axis=0)
 
-    async def get_top_k_places(self, users: list[User], places: list[PlaceInfo], k: int = 10) -> list[PlaceInfo]:
+    async def __get_top_k_places(self, init_user: User, users: list[User], places: list[PlaceInfo], k: int = 10) -> list[PlaceInfo]:
         """Метод для выбора k лучших мест согласно потребностям пользователей
         """
-        places_score = await self.__get_places_score(users, places)
+        places_score = await self.__get_places_score(init_user, users, places)
 
         return list(np.take(places, places_score.argsort()[::-1])[:k])
 
-    async def get_llm_places(self, users: list[User], places: list[PlaceInfo], llm_url: str, model_name: str = 'gemma2', k: int = 10) -> list[PlaceInfo]:
+    async def __get_llm_places(self, users: list[User], places: list[PlaceInfo]) -> list[PlaceInfo]:
         _PROMPT = """Ты - профессионально разбираешься в различных ресторанах и кафе, нужно, чтобы 
                 из следующего списка отранжированных заведений вида: "Номер заведения : его название, список кухонь, список тэгов"
                 Выбери 5 заведений больше всего подходящих пользователям.
@@ -85,7 +85,7 @@ class RankingService:
             places_info += str(i) + ': ' + places[i].place_name + '. ' + ', '.join(
                 places[i].cuisines) + '. ' + ','.join(places[i].rubrics) + '\n'
         payload = {
-            "model": model_name,
+            "model": ...,
             "prompt": _PROMPT.format(query=query,
                                      places_info=places_info
                                      ),
@@ -94,7 +94,7 @@ class RankingService:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    url=llm_url,
+                    url=...,
                     json=payload,
                 ) as response:
                     indexes = list(
@@ -102,3 +102,10 @@ class RankingService:
             return list(places[i] for i in indexes)
         except:
             return None
+        
+    async def get_variants(self, init_user: User, users: list[User]):
+        places = await map_api.get_places_info(lat=init_user.base_position_lat, lon=init_user.base_position_lng)
+        top_10_places = await self.__get_top_k_places(init_user, users, places)
+        top_5_places = await self.__get_llm_places(users, top_10_places)
+        
+        return top_5_places
