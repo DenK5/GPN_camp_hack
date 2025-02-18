@@ -6,11 +6,17 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
 from datetime import datetime, timezone, timedelta
+from aiogram.fsm.storage.memory import MemoryStorage
+import json
+
+logging.basicConfig(level=logging.INFO)
 
 class LunchSurvey(StatesGroup):
     choose_method = State()
     choose_date_and_time = State()
     choose_end_time = State()
+    choose_location = State()
+    location_name = State()
 
 async def start_lunch_command(message: types.Message, bot: Bot):
     """Обрабатывает команду /lunch в групповом чате, отправляя кнопку 'Пойдем на обед'."""
@@ -140,10 +146,9 @@ async def process_web_app_time(message: types.Message, state: FSMContext):
         await message.answer("❌ Произошла ошибка при обработке времени. Пожалуйста, попробуйте снова.")
 
 
-
 async def process_poll_end_time(message: types.Message, state: FSMContext):
-    """Обрабатывает ввод времени окончания опроса."""
-
+    """Обрабатывает ввод времени окончания опроса и предлагает выбрать место на карте."""
+    
     poll_end_time_data = message.text.strip() if message.text else message.web_app_data.data
     logging.info(f"Получено время: {poll_end_time_data}")
     
@@ -161,9 +166,8 @@ async def process_poll_end_time(message: types.Message, state: FSMContext):
     
     utc_time = datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc)
     local_time = utc_time + timedelta(minutes=timezone_offset)
-
+    
     adjusted_time = local_time - timedelta(hours=12)
-
     formatted_time = adjusted_time.strftime("%H:%M")
     logging.info(f"⏰ Время окончания опроса: {formatted_time}")
 
@@ -175,13 +179,97 @@ async def process_poll_end_time(message: types.Message, state: FSMContext):
         return
 
     await message.answer(f"📅 Опрос завершится в {formatted_time}, обед в {lunch_time}.")
+
+    web_app_url = "https://mycustomname.loca.lt"
+    web_app = types.WebAppInfo(url=web_app_url)
+
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="📍 Ввести адрес", web_app=web_app)]],
+        resize_keyboard=True
+    )
+
+    await message.answer("Теперь выберите место обеда на карте:", reply_markup=keyboard)
+    await state.set_state(LunchSurvey.choose_location)
+
+
+async def process_web_app_location(message: types.Message, state: FSMContext):
+    """Обрабатывает ввод координат из WebApp и запрашивает название заведения."""
+    if message.web_app_data:
+        try:
+            data = json.loads(message.web_app_data.data)
+            latitude = data.get("latitude")
+            longitude = data.get("longitude")
+            address = data.get("address")
+
+            if latitude and longitude:
+                latitude, longitude = float(latitude), float(longitude)
+                location = {"latitude": latitude, "longitude": longitude}
+                await state.update_data(choose_location=location)
+            elif address:
+                await state.update_data(choose_location=address)
+            else:
+                raise ValueError("Данные не содержат адреса или координат")
+
+            logging.info(f"📍 Выбранные координаты: lat={latitude}, lon={longitude}")
+                    
+            await message.answer(
+                f"📍 Вы выбрали место:\n"
+                f"🌍 Широта: {latitude}\n"
+                f"🌏 Долгота: {longitude}\n"
+                f"Уточните название заведения:"
+            )
+
+            await state.set_state(LunchSurvey.location_name)
+
+        except Exception as e:
+            logging.error(f"❌ Общая ошибка при обработке координат: {e}")
+            await message.answer("❌ Произошла ошибка при обработке координат. Попробуйте снова.")
+
+async def process_location_name(message: types.Message, state: FSMContext):
+    """Обрабатывает ввод названия заведения и завершает опрос."""
+    location_name = message.text.strip()
+    logging.info(f"📍 Введено имя {location_name}")
+    if not location_name:
+        await message.answer("❌ Название не может быть пустым. Попробуйте еще раз.")
+        return
+
+    user_data = await state.get_data()
+    location = user_data.get("choose_location")
+
+    logging.info(f"Позиция {location}")
+    
+    if not location or not isinstance(location, dict):
+        logging.error("❌ Ошибка: координаты отсутствуют в state!")
+        await message.answer("❌ Ошибка! Координаты отсутствуют. Попробуйте заново выбрать место.")
+        return
+
+    latitude = location.get("latitude")
+    longitude = location.get("longitude")
+
+    await state.update_data(location_name=location_name)
+    user_data = await state.get_data()
+
+    await message.answer(
+        f"✅ Вы выбрали место:\n"
+        f"📍 {user_data['location_name']}\n"
+        f"🌍 Широта: {latitude}\n"
+        f"🌏 Долгота: {longitude}\n"
+        f"🏠 Заведение: {location_name}\n\n"
+        f"Спасибо! Опрос завершен."
+    )
+
     await state.clear()
+
 
 def register_lunch_handlers(dp: Dispatcher, bot: Bot):
     logging.info("🛠️ Регистрируем обработчики для /lunch...")
+
     dp.message.register(start_lunch_command, Command("lunch"))
     dp.message.register(process_lunch_choice, LunchSurvey.choose_method)
     dp.callback_query.register(process_calendar, SimpleCalendarCallback.filter())
     dp.message.register(process_web_app_time, LunchSurvey.choose_date_and_time)
     dp.message.register(process_poll_end_time, LunchSurvey.choose_end_time)
+    dp.message.register(process_web_app_location, LunchSurvey.choose_location)
+    dp.message.register(process_location_name, LunchSurvey.location_name)
+
     logging.info("✅ Обработчики для /lunch зарегистрированы!")
