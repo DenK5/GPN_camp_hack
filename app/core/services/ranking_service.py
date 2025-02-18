@@ -82,7 +82,7 @@ class RankingService:
         """
         query = ""
         for user in users:
-            query += user.preferences_by_type + ' ' + user.preferences_by_food
+            query += user.preferences_by_type + ' ' + user.preferences_by_food + ' '
         places_info = ""
         for i in range(len(places)):
             places_info += str(i) + ': ' + places[i].place_name + '. ' + ', '.join(
