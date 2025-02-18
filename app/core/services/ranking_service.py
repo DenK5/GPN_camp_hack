@@ -6,9 +6,9 @@ import numpy as np
 import aiohttp
 import json
 from json_repair import repair_json
+from config import Config
 
-map_api = Map2GisAPI('...')
-
+map_api = Map2GisAPI(Config.MAP_API_KEY)
 
 class RankingService:
     async def __get_rrf_score_for_user(
@@ -17,12 +17,15 @@ class RankingService:
     ) -> np.ndarray[float]:
         """Метод для оценки всех мест согласно предпочтениям данного пользователя
         """
-        matrix = np.array([
+        matrix = np.array([[
             current_place.avg_lunch_cost - user.avg_receipt,
             current_place.avg_business_lunch_cost,
             -current_place.general_rating
-        ] for current_place in places)
-
+        ] for current_place in places])
+        print('===================================================================================')
+        print(places)
+        print(matrix, distances)
+        print('===================================================================================')
         matrix = np.c_[matrix, distances]
 
         sorted_indices = np.argsort(matrix, axis=0)
@@ -85,7 +88,7 @@ class RankingService:
             places_info += str(i) + ': ' + places[i].place_name + '. ' + ', '.join(
                 places[i].cuisines) + '. ' + ','.join(places[i].rubrics) + '\n'
         payload = {
-            "model": ...,
+            "model": Config.MODEL_NAME,
             "prompt": _PROMPT.format(query=query,
                                      places_info=places_info
                                      ),
@@ -94,11 +97,12 @@ class RankingService:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    url=...,
+                    url=Config.LLM_API_URL,
                     json=payload,
                 ) as response:
+                    response_data = await response.json()
                     indexes = list(
-                        map(int, json.loads(repair_json(response.json()['response'])).values()))
+                        map(int, json.loads(repair_json(response_data['response'])).values()))
             return list(places[i] for i in indexes)
         except:
             return None

@@ -55,7 +55,7 @@ async def set_food_preferences(message: types.Message, state: FSMContext):
     """Сохранение предпочтений в еде"""
     await state.update_data(food_preferences=message.text)
     
-    web_app_url = "https://b34cac08-647f-4fc5-b111-a7174ebcf812.tunnel4.com"
+    web_app_url = "https://b93f303f-f4ba-4a35-9588-e7db2e5dca60.tunnel4.com"
     web_app = WebAppInfo(url=web_app_url)
     keyboard = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="📍 Ввести адрес", web_app=web_app)]],

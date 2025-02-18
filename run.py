@@ -6,21 +6,19 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from app.presentation.bot.handlers import user_handler, lunch_handler
 from app.core.services.poll_service import PollService
-from app.core.repositories.restaurant_repository import RestaurantRepository
 
-load_dotenv()
+from dotenv import load_dotenv
+from config import Config
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-if not TOKEN:
-    raise ValueError("Не найден TELEGRAM_BOT_TOKEN в .env файле!")
+load_dotenv(override=True)
+
+TOKEN = Config.TELEGRAM_BOT_TOKEN
 
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# poll_repository = PollRepository()
-# restaurant_repository = RestaurantRepository()
 poll_service = PollService()
 
 def register_handlers():

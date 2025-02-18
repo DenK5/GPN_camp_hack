@@ -18,17 +18,26 @@ class UserRepository:
         """
         Получает пользователя по telegram_id.
         """
+        if not isinstance(telegram_id, int):
+            try:
+                telegram_id = int(telegram_id)
+            except ValueError:
+                logger.error(f"❌ Ошибка: telegram_id должен быть числом, получено: {telegram_id}")
+                return None
+        
         logger.info(f"🔎 Поиск пользователя с telegram_id={telegram_id} в БД")
+        
         stmt = select(UserModel).filter(UserModel.telegram_id == telegram_id)
         result = await self.db.execute(stmt)
         user_model = result.scalars().first()
-        
+
         if user_model:
             logger.info(f"✅ Пользователь найден: {user_model}")
             return self._map_user_model_to_entity(user_model)
         else:
             logger.warning(f"⚠️ Пользователь с telegram_id={telegram_id} не найден")
             return None
+
 
     async def save_user(self, user: User):
         """

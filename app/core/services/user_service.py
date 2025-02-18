@@ -19,6 +19,23 @@ class UserService:
     async def __aexit__(self, exc_type, exc, tb):
         await self.db_session.close()
 
+    async def get_user_data(self, telegram_id: int):
+        """
+        Получает все данные пользователя (координаты, средний чек, предпочтения).
+        """
+        user = await self.user_repo.get_user(telegram_id)
+        if user:
+            return {
+                "telegram_id": user.telegram_id,
+                "chat_id": user.chat_id,
+                "base_position_lat": user.base_position_lat,
+                "base_position_lng": user.base_position_lng,
+                "avg_receipt": user.avg_receipt,
+                "preferences_by_type": user.preferences_by_type,
+                "preferences_by_food": user.preferences_by_food
+            }
+        return None
+    
     async def set_avg_receipt(self, telegram_id: int, avg_receipt: float):
         """
         Устанавливает средний чек пользователя.

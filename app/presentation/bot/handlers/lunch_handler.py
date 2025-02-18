@@ -10,9 +10,15 @@ from app.infrastructure.external.map_api.Map2GisAPI import Map2GisAPI
 from app.infrastructure.external.map_api.models.Point import Point
 from app.application.use_cases.create_poll_use_case import CreatePollUseCase
 from app.core.services.poll_service import PollService
-from aiogram.types import Message
+from app.core.services.user_service import UserService
+from app.core.entities.user import User
 import json
 import asyncio
+from app.core.services.ranking_service import RankingService
+
+# Инициализация объекта RankingService
+ranking_service = RankingService()
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -43,20 +49,40 @@ async def start_lunch_command(message: types.Message, bot: Bot, state: FSMContex
     inline_keyboard = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(
             text="Пойдем на обед",
-            url=f"https://t.me/{bot_info.username}?start=lunch_{chat_id}"
+            url=f"https://t.me/{bot_info.username}?start=lunch_{chat_id}_{','.join(map(str, user_ids))}"
         )]]
     )
 
     await message.answer("🍽 Кто хочет пойти на обед? Жмите кнопку!", reply_markup=inline_keyboard)
 
+    # Сохраняем chat_id и список участников отдельно
     await state.update_data(chat_id=chat_id, members=user_ids)
+
+
 
 async def start_lunch_private(message: types.Message, state: FSMContext):
     """Запускает процесс выбора обеда в ЛС."""
     logging.info(f"👤 Пользователь {message.from_user.id} перешел в ЛС")
-    
+
+    # Получаем данные из состояния
     data = await state.get_data()
     logging.info(f"✅ Данные в состоянии после сохранения chat_id: {data}")
+
+    # Разбираем chat_id на части (первая часть — chat_id, остальные — members)
+    chat_id = data.get("chat_id")
+    if chat_id:
+        chat_id_parts = chat_id.split('_')
+        group_chat_id = chat_id_parts[0]  # id группы
+        members = chat_id_parts[1:]  # все остальные части - это члены группы
+        logging.info(f"📋 Извлеченные данные: group_chat_id={group_chat_id}, members={members}")
+    else:
+        logging.error("chat_id отсутствует в состоянии.")
+        await message.answer("chat_id не найден.")
+        return
+
+    # Сохраняем group_chat_id и members в состояние
+    await state.update_data(chat_id=group_chat_id, members=members)
+    logging.info(f"📋 Состояние обновлено: group_chat_id={group_chat_id}, members={members}")
 
     keyboard = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="✅ Да"), KeyboardButton(text="❌ Нет")]],
@@ -66,18 +92,79 @@ async def start_lunch_private(message: types.Message, state: FSMContext):
     await message.answer("Вы хотите выбрать место обеда самостоятельно?", reply_markup=keyboard)
     await state.set_state(LunchSurvey.choose_method)
 
-
 async def process_lunch_choice(message: types.Message, state: FSMContext):
     """Обрабатывает выбор пользователя (самостоятельно или автоматически)."""
     logging.info(f"📩 Пользователь выбрал: {message.text}")
 
     choice = message.text.strip().lower()
+
+    state_data = await state.get_data()
+    chat_id = state_data.get("chat_id")
+    members = state_data.get("members")
+
+
+    if chat_id:
+        chat_id_parts = chat_id.split('_')
+        if len(chat_id_parts) == 2:
+            
+            chat_id = chat_id_parts[0]
+            user_id = chat_id_parts[1]
+            logging.info(f"📩 Пользователь выбрал: {user_id}")
+    else:
+        chat_id = None
+        user_id = None
+
+    if not members:
+        await message.answer("Ошибка: не удалось получить список участников. Попробуйте еще раз.")
+        return
+
     if choice == "✅ да":
         calendar = SimpleCalendar(locale='ru_RU')
         await message.answer("Выберите дату обеда:", reply_markup=await calendar.start_calendar())
         await state.set_state(LunchSurvey.choose_date_and_time)
+
     elif choice == "❌ нет":
-        await message.answer("Мы подберем вам лучшее место!", reply_markup=ReplyKeyboardRemove())
+        telegram_id = message.from_user.id
+        async with UserService() as user_service:
+            users = []
+            
+            for member_id in members:
+                user_data = await user_service.get_user_data(member_id)
+                if user_data:
+                    users.append(User(
+                        telegram_id=member_id,
+                        chat_id=str(member_id),
+                        base_position_lat = user_data['base_position_lat'],
+                        base_position_lng = user_data['base_position_lng'],
+                        avg_receipt = user_data['avg_receipt'],
+                        preferences_by_type=user_data['preferences_by_type'],
+                        preferences_by_food=user_data['preferences_by_food']
+                        
+                    ))
+
+            current_user_data = await user_service.get_user_data(telegram_id)
+            if current_user_data:
+                users.append(User(
+                    telegram_id=telegram_id,
+                    chat_id=str(telegram_id),
+                    base_position_lat = user_data['base_position_lat'],
+                    base_position_lng = user_data['base_position_lng'],
+                    avg_receipt = user_data['avg_receipt'],
+                    preferences_by_type=current_user_data['preferences_by_type'],
+                    preferences_by_food=current_user_data['preferences_by_food']
+                ))
+
+            top_5_places = await ranking_service.get_variants(users[0], users[1:])
+
+            if top_5_places:
+                response_message = "Вот 5 лучших мест для обеда:\n\n"
+                for i, place in enumerate(top_5_places, 1):
+                    response_message += f"{i}. {place.place_name}\n"
+
+                await message.answer(response_message)
+
+        await message.answer("Выбор завершен.", reply_markup=ReplyKeyboardRemove())
+
     else:
         await message.answer("Выберите один из предложенных вариантов.")
 
@@ -193,7 +280,7 @@ async def process_poll_end_time(message: types.Message, state: FSMContext):
 
     await message.answer(f"📅 Опрос завершится в {formatted_time}, обед в {lunch_time}.")
 
-    web_app_url = "https://b34cac08-647f-4fc5-b111-a7174ebcf812.tunnel4.com"
+    web_app_url = "https://b93f303f-f4ba-4a35-9588-e7db2e5dca60.tunnel4.com"
     web_app = types.WebAppInfo(url=web_app_url)
 
     keyboard = ReplyKeyboardMarkup(
