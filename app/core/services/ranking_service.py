@@ -56,7 +56,7 @@ class RankingService:
 
         return list(np.take(places, places_score.argsort()[::-1])[:k])
 
-    async def get_llm_places(self, users: list[User], places: list[PlaceInfo], llm_url: str = 'http://localhost:11434/api/generate', model_name: str = 'gemma2', k: int = 10) -> list[PlaceInfo]:
+    async def get_llm_places(self, users: list[User], places: list[PlaceInfo], llm_url: str = 'http://26.236.206.70:11434/api/generate', model_name: str = 'gemma2', k: int = 10) -> list[PlaceInfo]:
         _PROMPT = """Ты - профессионально разбираешься в различных ресторанах и кафе, нужно, чтобы 
                 из следующего списка отранжированных заведений вида: "Номер заведения : его название, список кухонь, список тэгов"
                 Выбери 5 заведений больше всего подходящих пользователям.
