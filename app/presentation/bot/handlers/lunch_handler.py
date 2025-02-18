@@ -26,9 +26,9 @@ class LunchSurvey(StatesGroup):
     members = State()
 
 async def start_lunch_command(message: types.Message, bot: Bot, state: FSMContext):
-    """Обрабатывает команду /lunch в групповом чате, отправляя кнопку 'Пойдем на обед'."""
-    if message.chat.type == "private":
-        await start_lunch_private(message, state)
+    """Обрабатывает команду /lunch только в групповом чате."""
+    if message.chat.type != "supergroup" and message.chat.type != "group":
+        await message.answer("Эта команда доступна только в групповых чатах.")
         return
 
     chat_id = message.chat.id
@@ -51,8 +51,6 @@ async def start_lunch_command(message: types.Message, bot: Bot, state: FSMContex
 
     await state.update_data(chat_id=chat_id, members=user_ids)
 
-
-
 async def start_lunch_private(message: types.Message, state: FSMContext):
     """Запускает процесс выбора обеда в ЛС."""
     logging.info(f"👤 Пользователь {message.from_user.id} перешел в ЛС")
@@ -67,7 +65,6 @@ async def start_lunch_private(message: types.Message, state: FSMContext):
 
     await message.answer("Вы хотите выбрать место обеда самостоятельно?", reply_markup=keyboard)
     await state.set_state(LunchSurvey.choose_method)
-
 
 
 async def process_lunch_choice(message: types.Message, state: FSMContext):
