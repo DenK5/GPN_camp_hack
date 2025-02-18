@@ -96,12 +96,17 @@ from app.infrastructure.external.map_api.models.Point import Point
 
 from pydantic import BaseModel
 import numpy as np
+import aiohttp
+import json
+from json_repair import repair_json
 
 
 class User(BaseModel):
     wanted_price: float
     current_lat: float
     current_lon: float
+    wanted_types: str
+    wanted_food: str
 
 
 map_api = Map2GisAPI('...')       
@@ -143,3 +148,48 @@ class RankingService:
         places_score = await self.__get_places_score(users, places)
 
         return list(np.take(places, places_score.argsort()[::-1])[:k])
+    
+    async def get_llm_places(self, users: list[User], places: list[PlaceInfo], llm_url: str = 'http://localhost:11434/api/generate', model_name: str = 'gemma2', k: int = 10) -> list[PlaceInfo]:
+        _PROMPT = """Ты - профессионально разбираешься в различных ресторанах и кафе, нужно, чтобы 
+                из следующего списка отранжированных заведений вида: "Номер заведения : его название, список кухонь, список тэгов"
+                Выбери 5 заведений больше всего подходящих пользователям.
+
+                Обязательные правила:
+                1) Минимум должно быть 5 ответов. Даже если все заведения не подходят. Ответ представляет собой массив чисел, содержащий номера заведений, всегда должно быть минимум 5 различных чисел в ответе.
+                2) НЕ ГОВОРИ В ОТВЕТЕ ЛИШНИХ ФРАЗ.
+                3) Отвечай в виде json, где answer - места для ответов, в ответе содержится минимум 5 чисел.
+                {{
+                    'answer1':
+                    'answer2': 
+                    'answer3': 
+                    'answer4': 
+                    'answer5':  
+                }}
+                Запрос пользователей:
+                {query}
+                Список заведений:
+                {places_info}
+                """
+        query = ""
+        for user in users:
+            query += user.wanted_food + ' ' + user.wanted_price
+        places_info = ""
+        for i in range(len(places)):
+            places_info += str(i) + ': ' + places[i].place_name + '. ' + ', '.join(places[i].cuisines) + '. ' + ','.join(places[i].rubrics) + '\n'
+        payload = {
+                "model": model_name,
+                "prompt": _PROMPT.format(query=query,
+                        places_info=places_info
+                ),
+                "stream": False
+            }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url=llm_url,
+                    json=payload,
+                ) as response:
+                    indexes = list(map(int, json.loads(repair_json(response.json()['response'])).values()))
+            return list(places[i] for i in indexes)
+        except:
+            return None
