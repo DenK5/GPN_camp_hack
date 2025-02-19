@@ -11,7 +11,7 @@ from app.presentation.ui.messages import (
 )
 from aiogram.filters import CommandObject
 from app.presentation.bot.handlers.lunch_handler import start_lunch_private
-
+from config import Config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ async def set_food_preferences(message: types.Message, state: FSMContext):
     """Сохранение предпочтений в еде"""
     await state.update_data(food_preferences=message.text)
     
-    web_app_url = "https://d83bc93f-60f3-4028-bdb7-469f4f8ffe99.tunnel4.com"
+    web_app_url = Config.SERVER_URL
     web_app = WebAppInfo(url=web_app_url)
     keyboard = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="📍 Ввести адрес", web_app=web_app)]],
@@ -97,7 +97,7 @@ async def webapp_data_handler(message: types.Message, state: FSMContext):
                     longitude=longitude
                 )
 
-            await message.answer("✅ Данные успешно сохранены!")
+            await message.answer("✅ Спасибо за ответы! Добавь меня в общий чат и я помогу тебе вкусно пообедать!")
             await state.clear()
         except (json.JSONDecodeError, ValueError) as e:
             await message.answer("❌ Ошибка обработки данных WebApp! Проверьте формат.")

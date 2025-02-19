@@ -164,7 +164,7 @@ async def process_web_app_time(message: types.Message, state: FSMContext):
         if lunch_date:
             choose_date_and_time = f"{lunch_date} {formatted_time}"
             await state.update_data(choose_date_and_time=choose_date_and_time)
-            await message.answer(f"📅 Вы выбрали обед: {choose_date_and_time}\n\nТеперь введите время окончания опроса (ЧЧ:ММ, например 12:30):")
+            await message.answer(f"📅 Вы выбрали обед: {choose_date_and_time}\n\nТеперь введите время окончания опроса:")
             await state.set_state(LunchSurvey.choose_end_time)
         else:
             await message.answer("❌ Ошибка: Не удалось получить дату обеда. Попробуйте снова.")
@@ -210,7 +210,7 @@ async def process_poll_end_time(message: types.Message, state: FSMContext, bot: 
     lunch_method_choice = user_data.get("lunch_method_choice")
     
     if lunch_method_choice == "✅ да":
-        web_app_url = "https://d83bc93f-60f3-4028-bdb7-469f4f8ffe99.tunnel4.com"
+        web_app_url = Config.SERVER_URL
         web_app = types.WebAppInfo(url=web_app_url)
 
         keyboard = ReplyKeyboardMarkup(
@@ -237,63 +237,7 @@ async def process_poll_end_time(message: types.Message, state: FSMContext, bot: 
             if current_user_data:
                 users.append(User(**current_user_data))
                 
-        top_5_places = [ 
-            PlaceInfo(
-                id='70000001069595862',
-                address_name='Маяковского, 39',
-                name='У Ларисы, кафе-бар',
-                point=Point(lat=59.942208, lon=30.355653),
-                reviews={'general_rating': 4.5},
-                rubrics=['Кафе', 'Бары', 'Доставка еды', 'Рюмочные'],
-                avg_lunch_cost=-1,
-                avg_business_lunch_cost=-1,
-                cuisines=['Узбекская кухня']
-            ),
-            PlaceInfo(
-                id='5348553838529810',
-                address_name='Радищева, 36',
-                name='Траппист, бельгийская брассерия',
-                point=Point(lat=59.94156, lon=30.363407),
-                reviews={'general_rating': 4.6},
-                rubrics=['Рестораны', 'Бары', 'Доставка еды'],
-                avg_lunch_cost=2000,
-                avg_business_lunch_cost=990,
-                cuisines=['Французская кухня']
-            ),
-            PlaceInfo(
-                id='70000001093839054',
-                address_name='Восстания, 55',
-                name='Мама Тата, грузинская неорюмочная',
-                point=Point(lat=59.943178, lon=30.360953),
-                reviews={'general_rating': 4.8},
-                rubrics=['Кафе', 'Рюмочные', 'Бары'],
-                avg_lunch_cost=850,
-                avg_business_lunch_cost=350,
-                cuisines=['Грузинская кухня', 'Кавказская кухня', 'Европейская кухня']
-            ),
-            PlaceInfo(
-                id='70000001060749771',
-                address_name='Невский проспект, 128',
-                name='Малатан, китайский и паназиатский ресторан',
-                point=Point(lat=59.931345, lon=30.366953),
-                reviews={'general_rating': 4.9},
-                rubrics=['Кафе', 'Доставка еды'],
-                avg_lunch_cost=550,
-                avg_business_lunch_cost=337,
-                cuisines=['Азиатская кухня']
-            ),
-            PlaceInfo(
-                id='70000001046974460',
-                address_name='улица Некрасова, 21',
-                name='Ossu, лапшичная',
-                point=Point(lat=59.938676, lon=30.358366),
-                reviews={'general_rating': 4.7},
-                rubrics=['Кафе', 'Доставка еды'],
-                avg_lunch_cost=1300,
-                avg_business_lunch_cost=450,
-                cuisines=['Паназиатская кухня']
-            )
-        ]
+        top_5_places = await ranking_service.get_variants(users[0], users[1:])
 
         if not top_5_places:
             await message.answer("❌ Не удалось найти подходящие места.")

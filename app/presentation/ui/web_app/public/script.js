@@ -41,8 +41,6 @@ function sendLocationData(lat, lng, closeWebApp = false) {
     window.Telegram.WebApp.sendData(locationData);
 
     if (closeWebApp) {
-        window.Telegram.WebApp.showAlert(locationData, () => {
-            setTimeout(() => window.Telegram.WebApp.close(), 100);
-        });
+        setTimeout(() => window.Telegram.WebApp.close(), 100);
     }
 }

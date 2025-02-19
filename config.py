@@ -15,6 +15,7 @@ class _Config(BaseSettings):
     DATABASE_URL: str
     LLM_API_URL: str
     MODEL_NAME: str
+    SERVER_URL: str
 
 
 Config = _Config()
