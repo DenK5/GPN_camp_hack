@@ -5,7 +5,9 @@ from app.infrastructure.external.map_api.models.Point import Point
 
 
 def collect_rubrics(rubrics: dict[str, t.Any]) -> list[str]:
-    return [rubric['name'] for rubric in rubrics]
+    if isinstance(rubrics, list) and all(isinstance(r, dict) for r in rubrics):
+        return [rubric['name'] for rubric in rubrics]
+    return rubrics 
 
 
 def get_avg_lunch_cost(stop_factors: list[dict[str, str]]) -> int:

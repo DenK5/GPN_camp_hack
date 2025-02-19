@@ -6,8 +6,6 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from app.presentation.bot.handlers import user_handler, lunch_handler
 from app.core.services.poll_service import PollService
-
-from dotenv import load_dotenv
 from config import Config
 
 load_dotenv(override=True)

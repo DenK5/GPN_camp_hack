@@ -55,7 +55,7 @@ async def set_food_preferences(message: types.Message, state: FSMContext):
     """Сохранение предпочтений в еде"""
     await state.update_data(food_preferences=message.text)
     
-    web_app_url = "https://b93f303f-f4ba-4a35-9588-e7db2e5dca60.tunnel4.com"
+    web_app_url = "https://d83bc93f-60f3-4028-bdb7-469f4f8ffe99.tunnel4.com"
     web_app = WebAppInfo(url=web_app_url)
     keyboard = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="📍 Ввести адрес", web_app=web_app)]],
@@ -100,10 +100,8 @@ async def webapp_data_handler(message: types.Message, state: FSMContext):
             await message.answer("✅ Данные успешно сохранены!")
             await state.clear()
         except (json.JSONDecodeError, ValueError) as e:
-            logging.error(f"❌ Ошибка обработки данных WebApp: {e}")
             await message.answer("❌ Ошибка обработки данных WebApp! Проверьте формат.")
     else:
-        logging.warning("❌ WebApp-данные отсутствуют!")
         await message.answer("❌ Данные из WebApp отсутствуют!")
 
 def register_user_handlers(dp: Dispatcher):

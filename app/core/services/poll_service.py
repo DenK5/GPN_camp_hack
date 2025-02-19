@@ -3,9 +3,9 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import logging
 
 class PollService:
-    async def send_poll(self, chat_id: int, place_name: str, end_time: str):
+    async def send_poll(self, chat_id: int, lunch_time: str, place_name: str, end_time: str):
         bot = Bot(token="7119550077:AAHpY8Evua6Bc0htFSZ50vU1uzautnZXLvA")
-        poll_question = f"Вы хотите пойти на обед в {place_name}? Опрос заканчивается в {end_time}."
+        poll_question = f"Вы хотите пойти в {lunch_time} на обед в {place_name}? Опрос заканчивается в {end_time}."
         
         options = ["Пойду", "Не пойду"]
 
